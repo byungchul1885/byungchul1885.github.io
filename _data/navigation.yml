@@ -1,0 +1,18 @@
+# main links
+main:
+  - title: "태그"
+    url: /tags/
+  - title: "카테고리"
+    url: /categories/
+  - title: "검색"
+    url: /search/
+  # - title: "Quick-Start Guide"
+  #   url: https://mmistakes.github.io/minimal-mistakes/docs/quick-start-guide/
+  # - title: "About"
+  #   url: https://mmistakes.github.io/minimal-mistakes/about/
+  # - title: "Sample Posts"
+  #   url: /year-archive/
+  # - title: "Sample Collections"
+  #   url: /collection-archive/
+  # - title: "Sitemap"
+  #   url: /sitemap/
