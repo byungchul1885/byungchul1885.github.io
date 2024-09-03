@@ -1,0 +1,177 @@
+---
+title: Memory Look
+# categories:
+#   - Blog
+tags: [rust]
+
+# toc: true
+# toc_sticky: true
+# toc_label: "페이지 목차"
+---
+
+## Slices
+
+```rust
+use std::mem::{size_of, size_of_val};
+
+fn main() {
+//                                                  
+//          v                                       
+//       ┌─┬─┬─┐                                    
+// stack │*│4│4│                                    
+//       └│┴─┴─┘                                    
+//        │                                         
+//        │ owning pointer                           
+//        │                                          
+//       ┌▼──┬─────┬───┬─────┐                      
+//  heap │0.0│0.707│1.0│0.707│                      
+//       └───┴─────┴───┴─────┘                      
+//
+    let v: Vec<f64> = vec![0.0, 0.707, 1.0, 0.707];
+
+    // 벡터 메모리 사용량: 24(stack) + 4 * 8 (heap) = 56 bytes
+    assert_eq!(24, size_of::<Vec<f64>>());    
+    assert_eq!(4, v.capacity());
+    assert_eq!(4, v.len());
+    assert_eq!(8, size_of::<f64>());
+
+//          v               a            
+//       ┌─┬─┬─┐   ┌───┬─────┬───┬─────┐
+// stack │*│4│4│   │0.0│0.707│1.0│0.707│
+//       └─┴─┴─┘   └───┴─────┴───┴─────┘
+//
+    let a: [f64; 4] = [0.0, -0.707, -1.0, -0.707];
+
+    // 배열 메모리 사용량: 32 bytes
+    assert_eq!(32, size_of_val(&a));
+    
+
+//                                reference(non-owning)                 
+//                   ┌─────────────────────┐                            
+//          v        │      a              │sa     sv                   
+//       ┌─┬─┬─┐   ┌─▼─┬─────┬───┬─────┐  ┌┼┬─┐ ┌─┬─┐                   
+// stack │*│4│4│   │0.0│0.707│1.0│0.707│  │*│4│ │*│4│                   
+//       └│┴─┴─┘   └───┴─────┴───┴─────┘  └─┴─┘ └│┴─┘                   
+//        │                                      │                      
+//        │           ┌──────────────────────────┘                      
+//        │           │                     reference(non-owning)       
+//        │          ┌▼──┬─────┬───┬─────┐                              
+//        │     heap │0.0│0.707│1.0│0.707│                              
+//        │          └▲──┴─────┴───┴─────┘                              
+//        │           │                                                 
+//        └───────────┘                                                 
+//          owning pointer     
+//               
+
+    let sv: &[f64] = &v;
+    let sa: &[f64] = &a;
+    
+    assert_eq!(16, size_of::<&[f64]>());
+    assert_eq!(16, size_of_val(&sv));
+    assert_eq!(16, size_of_val(&sa));
+}
+```
+
+## String
+
+```rust
+use std::mem::size_of_val;
+
+fn main() {
+//       noodles:  oodles:  poodles:               
+//        String    &str      &str                 
+//       ┌─┬─┬─┐   ┌─┬─┐     ┌─┬─┐                 
+// stack │*│7│7│   │*│6│     │*│7│                 
+//       └│┴─┴─┘   └│┴─┘     └│┴─┘                 
+//        │         │         │                    
+//    own │         │         │                    
+//        │ ┌───────┘         │                    
+//        │ │    borrow       │                    
+//        │ │                 │                    
+//       ┌▼┬▼┬─┬─┬─┬─┬─┐      │                    
+//  heap │n│o│o│d│l│e│s│      │                    
+//       └─┴─┴─┴─┴─┴─┴─┘      │ borrow                   
+//             str            │                   
+//          (unsized)         │                     
+//                           ┌▼┬─┬─┬─┬─┬─┬─┐       
+//                           │p│o│o│d│l│e│s│       
+//              preallocated └─┴─┴─┴─┴─┴─┴─┘       
+//            read-only memory        str          
+//                                 (unsized)       
+//                                               
+
+    // String
+    let noodles = "noodles".to_string();
+
+    // string slice
+    let oodles = &noodles[1..];
+
+    // string literal
+    let poodles = "poodles";
+
+    assert_eq!(24, size_of_val(&noodles));
+    assert_eq!(7, noodles.len());
+    assert_eq!(7, noodles.capacity());
+
+    assert_eq!(16, size_of_val(&oodles));
+    assert_eq!(6, oodles.len());
+
+    assert_eq!(16, size_of_val(&poodles));
+    assert_eq!(7, poodles.len());
+}
+```
+
+## Vector of structue
+
+```rust
+use std::mem::{size_of, size_of_val};
+
+fn main() {
+//                                               
+//       ┌─┬─┬─┐                                 
+// stack │*│4│3│                                 
+//       └┬┴─┴─┘                                 
+//        │                                      
+//        │                                      
+//       ┌├─── 0 ─────┬───── 1 ────┬───── 2 ────┐
+//       │▼┬──┬──┬────┼─┬──┬──┬────┼─┬──┬──┬────┤
+// heap  │*│16│10│1525│*│ 8│ 7│1563│*│ 8│ 5│1632│
+//       └┬┴──┴──┴────┴┬┴──┴──┴────┴┬┴──┴──┴────┘
+//        │            │            │            
+//        │            │            │            
+//       ┌▼─────────┐ ┌▼──────┐    ┌▼────┐       
+// heap  │Palestrina│ │Dowland│    │Lully│       
+//       └──────────┘ └───────┘    └─────┘       
+//                                               
+
+    struct Person {
+        name: String,
+        id: i32,
+    }
+
+    let mut team = Vec::new();
+
+    team.push(Person {
+        name: "Palestrina".to_string(),
+        id: 1525,
+    });
+    team.push(Person {
+        name: "Dowland".to_string(),
+        id: 1563,
+    });
+    team.push(Person {
+        name: "Lully".to_string(),
+        id: 1632,
+    });
+
+    for p in &team {
+        println!("{}, born {}", p.name, p.id);
+    }
+
+    assert_eq!(32, size_of::<Person>());
+    assert_eq!(24, size_of_val(&team));
+    assert_eq!(3, team.len());
+    assert_eq!(4, team.capacity());
+}
+```
+
